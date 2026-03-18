@@ -58,9 +58,10 @@
     this.resizeTimerId_ = null;
     this.playCount = 0;
     this.level = 1;
-    this.levelDistance = 250;
-    this.levelSpeedStep = 0.9;
+    this.levelDistance = 180;
+    this.levelSpeedStep = 0.65;
     this.levelHud = null;
+    this.effectTick = 0;
     // Sound FX.
     this.audioBuffer = null;
     this.soundFx = {};
@@ -132,8 +133,15 @@
     CRASHED: 'crashed',
     ICON: 'icon-offline',
     TOUCH_CONTROLLER: 'controller',
-    LEVEL_TWO_THEME: 'level-two-theme'
+    ONE_PIECE_THEME: 'one-piece-theme'
     };
+    Runner.levelScenes = [
+    {name: 'East Blue · Villa Foosha', skyTop: '#72d7ff', skyBottom: '#d9f7ff', sea: '#2f9dd6', accent: '#ffe066'},
+    {name: 'Grand Line · Going Merry', skyTop: '#59c8ff', skyBottom: '#c3f0ff', sea: '#167bb8', accent: '#ffd166'},
+    {name: 'Skypiea · Islas del Cielo', skyTop: '#98e2ff', skyBottom: '#f3fdff', sea: '#4ea8de', accent: '#fff1a8'},
+    {name: 'Water 7 · Aqua Laguna', skyTop: '#4fb4ff', skyBottom: '#c8e8ff', sea: '#115d90', accent: '#ffc857'},
+    {name: 'Wano · Atardecer Carmesí', skyTop: '#8d3b6b', skyBottom: '#f49f7a', sea: '#2f3f80', accent: '#ffd166'}
+    ];
     /**
     * Image source urls.
     * @enum {array.<object>}
@@ -295,6 +303,7 @@
     this.tRex = new Trex(this.canvas, this.images.TREX);
     this.outerContainerEl.appendChild(this.containerEl);
     this.createLevelHud();
+    this.applyLevelTheme();
     if (IS_MOBILE) {
     this.createTouchController();
     }
@@ -312,7 +321,8 @@
     },
     updateLevelHud: function() {
     if (this.levelHud) {
-    this.levelHud.textContent = 'Nivel ' + this.level;
+    var scene = this.getCurrentScene();
+    this.levelHud.textContent = 'Nivel ' + this.level + ' · ' + scene.name;
     }
     },
     updateLevel: function() {
@@ -322,12 +332,68 @@
     this.level = nextLevel;
     this.updateLevelHud();
     this.applyLevelTheme();
+    this.setSpeed(this.config.SPEED);
     }
     },
+    getCurrentScene: function() {
+    return Runner.levelScenes[(this.level - 1) % Runner.levelScenes.length];
+    },
     applyLevelTheme: function() {
-    var enableStrangerTheme = this.level >= 2;
-    document.body.classList.toggle(Runner.classes.LEVEL_TWO_THEME,
-    enableStrangerTheme);
+    var sceneIndex = ((this.level - 1) % Runner.levelScenes.length) + 1;
+    document.body.classList.add(Runner.classes.ONE_PIECE_THEME);
+    for (var i = 1; i <= Runner.levelScenes.length; i++) {
+    document.body.classList.remove('scene-' + i);
+    }
+    document.body.classList.add('scene-' + sceneIndex);
+    },
+    drawOnePieceBackdrop: function(deltaTime) {
+    var scene = this.getCurrentScene();
+    this.effectTick += deltaTime;
+    var g = this.canvasCtx.createLinearGradient(0, 0, 0, this.dimensions.HEIGHT);
+    g.addColorStop(0, scene.skyTop);
+    g.addColorStop(0.62, scene.skyBottom);
+    g.addColorStop(0.63, scene.sea);
+    g.addColorStop(1, '#08263f');
+    this.canvasCtx.fillStyle = g;
+    this.canvasCtx.fillRect(0, 0, this.dimensions.WIDTH, this.dimensions.HEIGHT);
+
+    var sunX = this.dimensions.WIDTH - 90 + Math.sin(this.effectTick / 4000) * 10;
+    this.canvasCtx.fillStyle = scene.accent;
+    this.canvasCtx.globalAlpha = 0.85;
+    this.canvasCtx.beginPath();
+    this.canvasCtx.arc(sunX, 30, 18, 0, Math.PI * 2);
+    this.canvasCtx.fill();
+    this.canvasCtx.globalAlpha = 1;
+
+    this.canvasCtx.fillStyle = 'rgba(255,255,255,.22)';
+    for (var i = 0; i < 4; i++) {
+    var waveY = 96 + i * 10 + Math.sin((this.effectTick / 500) + i) * 2;
+    this.canvasCtx.fillRect(0, waveY, this.dimensions.WIDTH, 2);
+    }
+
+    this.canvasCtx.fillStyle = 'rgba(13,41,66,.45)';
+    this.canvasCtx.beginPath();
+    this.canvasCtx.moveTo(35, 95);
+    this.canvasCtx.lineTo(64, 54);
+    this.canvasCtx.lineTo(95, 95);
+    this.canvasCtx.fill();
+
+    this.canvasCtx.fillStyle = 'rgba(255,255,255,.85)';
+    for (var p = 0; p < 16; p++) {
+    var px = (p * 53 + this.effectTick * 0.05) % this.dimensions.WIDTH;
+    var py = 18 + (p % 6) * 10 + Math.sin((this.effectTick / 700) + p) * 3;
+    this.canvasCtx.fillRect(px, py, 2, 2);
+    }
+
+    if (this.level >= 3) {
+    this.canvasCtx.strokeStyle = 'rgba(255,255,255,.18)';
+    this.canvasCtx.lineWidth = 2;
+    this.canvasCtx.beginPath();
+    this.canvasCtx.moveTo(120, 88);
+    this.canvasCtx.lineTo(140, 40 + Math.sin(this.effectTick / 600) * 5);
+    this.canvasCtx.lineTo(158, 88);
+    this.canvasCtx.stroke();
+    }
     },
     /**
     * Create the touch controller. A div that covers whole screen.
@@ -438,6 +504,7 @@
     this.time = now;
     if (this.activated) {
     this.clearCanvas();
+    this.drawOnePieceBackdrop(deltaTime);
     if (this.tRex.jumping) {
     this.tRex.updateJump(deltaTime, this.config);
     }
@@ -1310,6 +1377,25 @@
     sourceWidth, sourceHeight,
     this.xPos, this.yPos,
     this.config.WIDTH, this.config.HEIGHT);
+    var runner = Runner.instance_;
+    if (runner && runner.level >= 1) {
+    var auraColors = ['rgba(255,196,0,.28)', 'rgba(255,82,82,.22)', 'rgba(173,216,230,.24)', 'rgba(221,160,221,.24)', 'rgba(255,120,50,.24)'];
+    var auraColor = auraColors[(runner.level - 1) % auraColors.length];
+    this.canvasCtx.save();
+    this.canvasCtx.strokeStyle = auraColor;
+    this.canvasCtx.lineWidth = 2;
+    this.canvasCtx.beginPath();
+    this.canvasCtx.ellipse(this.xPos + this.config.WIDTH / 2, this.yPos + this.config.HEIGHT / 2,
+    this.config.WIDTH * 0.9, this.config.HEIGHT * 0.85, 0, 0, Math.PI * 2);
+    this.canvasCtx.stroke();
+    if (runner.level >= 2) {
+    this.canvasCtx.globalAlpha = 0.55;
+    this.canvasCtx.fillStyle = auraColor;
+    this.canvasCtx.fillRect(this.xPos - 7, this.yPos + this.config.HEIGHT - 8, 5, 2);
+    this.canvasCtx.fillRect(this.xPos - 13, this.yPos + this.config.HEIGHT - 5, 6, 2);
+    }
+    this.canvasCtx.restore();
+    }
     },
     /**
     * Sets a random time for the blink to happen.
@@ -2533,47 +2619,57 @@ html[subframe] body {
 }
 
 
+
 .level-hud {
-  color: #9b9b9b;
+  color: #f4f7ff;
   font-family: 'Trebuchet MS', Arial, sans-serif;
   font-size: 12px;
   letter-spacing: 1px;
   margin-top: 175px;
   text-align: right;
   text-transform: uppercase;
+  text-shadow: 0 0 8px rgba(0, 0, 0, .35);
 }
 
 .game-title {
   font-size: 30px;
   text-align: center;
   font-family: Helvetica, Arial, sans-serif;
+  color: #f8fbff;
+  text-shadow: 0 0 14px rgba(255, 198, 87, .45);
 }
 
 .game-subtitle {
   margin-top: 5px;
   text-align: center;
-  color: #8a8a8a;
+  color: #d8ecff;
   margin-bottom: 80px;
-  font-size: .8em;
-  line-height: 1.2em;
+  font-size: .85em;
+  line-height: 1.3em;
   font-family: Georgia, serif;
 }
 
-body.level-two-theme {
-  background: radial-gradient(circle at top, #350000 0%, #130000 55%, #070707 100%);
-  color: #ffd2d2;
+body.one-piece-theme {
+  background: radial-gradient(circle at top, #8be7ff 0%, #278fce 45%, #0b2c44 100%);
+  color: #f5fbff;
 }
 
-body.level-two-theme .game-title,
-body.level-two-theme .game-subtitle,
-body.level-two-theme .level-hud {
-  color: #ff6262;
-  text-shadow: 0 0 6px rgba(255, 20, 20, .9), 0 0 16px rgba(255, 20, 20, .6);
+body.one-piece-theme .interstitial-wrapper {
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 14px;
+  box-shadow: 0 0 30px rgba(7, 27, 46, .5);
+  padding-top: 6px;
 }
 
-body.level-two-theme .runner-canvas {
-  filter: saturate(1.25) contrast(1.15) hue-rotate(-24deg);
+body.one-piece-theme .runner-canvas {
+  filter: saturate(1.22) contrast(1.08);
 }
+
+body.one-piece-theme.scene-1 .game-title,
+body.one-piece-theme.scene-2 .game-title { color: #fff6cf; }
+body.one-piece-theme.scene-3 .game-title { color: #ffffff; }
+body.one-piece-theme.scene-4 .game-title { color: #ffe6c9; }
+body.one-piece-theme.scene-5 .game-title { color: #ffd5c8; }
 
 #offline-resources {
   display: none;
@@ -2609,8 +2705,8 @@ body.level-two-theme .runner-canvas {
 
 <body id="t">
 <div id="main-frame-error" class="interstitial-wrapper" jstcache="0">
-    <div class="onlyforchrome game-title">Dino Escape</div>
-    <div class="onlyforchrome game-subtitle">Presiona "Space" para saltar. Desde el nivel 2, el mundo se vuelve más oscuro y épico.</div>
+    <div class="onlyforchrome game-title">Dino Piece: Grand Adventure</div>
+    <div class="onlyforchrome game-subtitle">Cada nivel cambia a un escenario inspirado en One Piece con más efectos especiales. Presiona "Space" para zarpar.</div>
 	<div id="main-frame-notchrome" style="display:none; margin-top:50px;">Sorry, this game only runs on the Google Chrome! You can download it free <a href="https://www.google.com/chrome">here</a></div>
     <div id="offline-resources" jstcache="0">
     <div id="offline-resources-1x" jstcache="0">
