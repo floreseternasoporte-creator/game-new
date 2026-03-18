@@ -5,18 +5,6 @@
 <meta name="description" content="Ripped T-Rex/Dino game of Chromium">
 <meta property="og:title" content="Play the hidden T-Rex Dinosaur game of Chromium .">
 <meta property="og:type" content="article">
-<meta property="og:url" content="http://www.thecodepost.org">
-<meta property="og:image" content="http://img.thecodepost.org/2015/01/trex.png">
-<meta property="og:site_name" content="The Code Post">
-<meta property="og:description" content="Google Chrome has a hidden T-Rex game only for offline mode. But now, you can enjoy it any time and on any device, but you gotta stay online!!!">
-
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:site" content="@thecodepost">
-<meta name="twitter:creator" content="@thecodepost">
-<meta name="twitter:title" content="Check out the cool hidden game from Google Chrome!">
-<meta name="twitter:description" content="Check out the cool hidden game from Google Chrome!">
-<meta name="twitter:image:src" content="http://img.thecodepost.org/2015/01/trex.png">
-<script src="https://apis.google.com/js/platform.js" async defer></script>
 
 	<!--script type="text/javascript" src="a.js"></script-->
 	<script type="text/javascript">
@@ -69,6 +57,10 @@
     this.paused = false;
     this.resizeTimerId_ = null;
     this.playCount = 0;
+    this.level = 1;
+    this.levelDistance = 250;
+    this.levelSpeedStep = 0.9;
+    this.levelHud = null;
     // Sound FX.
     this.audioBuffer = null;
     this.soundFx = {};
@@ -104,10 +96,10 @@
     * @enum {number}
     */
     Runner.config = {
-    ACCELERATION: 0.001,
+    ACCELERATION: 0.00045,
     BG_CLOUD_SPEED: 0.2,
     BOTTOM_PAD: 10,
-    CLEAR_TIME: 3000,
+    CLEAR_TIME: 3600,
     CLOUD_FREQUENCY: 0.5,
     GAMEOVER_CLEAR_TIME: 750,
     GAP_COEFFICIENT: 0.6,
@@ -115,11 +107,11 @@
     INITIAL_JUMP_VELOCITY: 12,
     MAX_CLOUDS: 6,
     MAX_OBSTACLE_LENGTH: 3,
-    MAX_SPEED: 12,
+    MAX_SPEED: 10,
     MIN_JUMP_HEIGHT: 35,
     MOBILE_SPEED_COEFFICIENT: 1.2,
     RESOURCE_TEMPLATE_ID: 'audio-resources',
-    SPEED: 6,
+    SPEED: 4,
     SPEED_DROP_COEFFICIENT: 3
     };
     /**
@@ -139,7 +131,8 @@
     CONTAINER: 'runner-container',
     CRASHED: 'crashed',
     ICON: 'icon-offline',
-    TOUCH_CONTROLLER: 'controller'
+    TOUCH_CONTROLLER: 'controller',
+    LEVEL_TWO_THEME: 'level-two-theme'
     };
     /**
     * Image source urls.
@@ -265,13 +258,14 @@
     */
     setSpeed: function(opt_speed) {
     var speed = opt_speed || this.currentSpeed;
+    speed += (this.level - 1) * this.levelSpeedStep;
     // Reduce the speed on smaller mobile screens.
     if (this.dimensions.WIDTH < DEFAULT_WIDTH) {
     var mobileSpeed = speed * this.dimensions.WIDTH / DEFAULT_WIDTH *
     this.config.MOBILE_SPEED_COEFFICIENT;
     this.currentSpeed = mobileSpeed > speed ? speed : mobileSpeed;
-    } else if (opt_speed) {
-    this.currentSpeed = opt_speed;
+    } else {
+    this.currentSpeed = speed;
     }
     },
     /**
@@ -300,6 +294,7 @@
     // Draw t-rex
     this.tRex = new Trex(this.canvas, this.images.TREX);
     this.outerContainerEl.appendChild(this.containerEl);
+    this.createLevelHud();
     if (IS_MOBILE) {
     this.createTouchController();
     }
@@ -307,6 +302,32 @@
     this.update();
     window.addEventListener(Runner.events.RESIZE,
     this.debounceResize.bind(this));
+    },
+
+    createLevelHud: function() {
+    this.levelHud = document.createElement('div');
+    this.levelHud.className = 'level-hud';
+    this.outerContainerEl.appendChild(this.levelHud);
+    this.updateLevelHud();
+    },
+    updateLevelHud: function() {
+    if (this.levelHud) {
+    this.levelHud.textContent = 'Nivel ' + this.level;
+    }
+    },
+    updateLevel: function() {
+    var nextLevel = Math.floor(this.distanceMeter.getActualDistance(this.distanceRan) /
+    this.levelDistance) + 1;
+    if (nextLevel !== this.level) {
+    this.level = nextLevel;
+    this.updateLevelHud();
+    this.applyLevelTheme();
+    }
+    },
+    applyLevelTheme: function() {
+    var enableStrangerTheme = this.level >= 2;
+    document.body.classList.toggle(Runner.classes.LEVEL_TWO_THEME,
+    enableStrangerTheme);
     },
     /**
     * Create the touch controller. A div that covers whole screen.
@@ -438,7 +459,8 @@
     checkForCollision(this.horizon.obstacles[0], this.tRex);
     if (!collision) {
     this.distanceRan += this.currentSpeed * deltaTime / this.msPerFrame;
-    if (this.currentSpeed < this.config.MAX_SPEED) {
+    this.updateLevel();
+    if (this.currentSpeed < this.config.MAX_SPEED + ((this.level - 1) * this.levelSpeedStep)) {
     this.currentSpeed += this.config.ACCELERATION;
     }
     } else {
@@ -629,6 +651,9 @@
     this.activated = true;
     this.crashed = false;
     this.distanceRan = 0;
+    this.level = 1;
+    this.updateLevelHud();
+    this.applyLevelTheme();
     this.setSpeed(this.config.SPEED);
     this.time = getTimeStamp();
     this.containerEl.classList.remove(Runner.classes.CRASHED);
@@ -2507,6 +2532,49 @@ html[subframe] body {
   z-index: 1;
 }
 
+
+.level-hud {
+  color: #9b9b9b;
+  font-family: 'Trebuchet MS', Arial, sans-serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  margin-top: 175px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.game-title {
+  font-size: 30px;
+  text-align: center;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+.game-subtitle {
+  margin-top: 5px;
+  text-align: center;
+  color: #8a8a8a;
+  margin-bottom: 80px;
+  font-size: .8em;
+  line-height: 1.2em;
+  font-family: Georgia, serif;
+}
+
+body.level-two-theme {
+  background: radial-gradient(circle at top, #350000 0%, #130000 55%, #070707 100%);
+  color: #ffd2d2;
+}
+
+body.level-two-theme .game-title,
+body.level-two-theme .game-subtitle,
+body.level-two-theme .level-hud {
+  color: #ff6262;
+  text-shadow: 0 0 6px rgba(255, 20, 20, .9), 0 0 16px rgba(255, 20, 20, .6);
+}
+
+body.level-two-theme .runner-canvas {
+  filter: saturate(1.25) contrast(1.15) hue-rotate(-24deg);
+}
+
 #offline-resources {
   display: none;
 }
@@ -2540,26 +2608,9 @@ html[subframe] body {
 </head>
 
 <body id="t">
-<script>
-  window.fbAsyncInit = function() {
-    FB.init({
-      appId      : '576553495813787',
-      xfbml      : true,
-      version    : 'v2.2'
-    });
-  };
-
-  (function(d, s, id){
-     var js, fjs = d.getElementsByTagName(s)[0];
-     if (d.getElementById(id)) {return;}
-     js = d.createElement(s); js.id = id;
-     js.src = "//connect.facebook.net/en_US/sdk.js";
-     fjs.parentNode.insertBefore(js, fjs);
-   }(document, 'script', 'facebook-jssdk'));
-</script>
 <div id="main-frame-error" class="interstitial-wrapper" jstcache="0">
-    <div class="onlyforchrome" style="font-size: 30px;text-align: center;font-family: Helvetica;">Running T-Rex</div>
-    <div class="onlyforchrome" style="margin-top:5px;text-align:center;color:#8a8a8a;margin-bottom:80px; font-size:.8em;line-height:1.2em;font-family: Georgia;"><a href="http://www.thecodepost.org/internet/play-hidden-t-rex-game-offline-chrome/" target="_blank"><strong>T-Rex Dino game</strong></a> from Google Chrome offline mode ripped by <a href="https://www.twitter.com/thecodepost" target="_blank"><strong>@thecodepost</strong></a>.<br/> Press "Space" to jump your Dino and start the game.</div>
+    <div class="onlyforchrome game-title">Dino Escape</div>
+    <div class="onlyforchrome game-subtitle">Presiona "Space" para saltar. Desde el nivel 2, el mundo se vuelve más oscuro y épico.</div>
 	<div id="main-frame-notchrome" style="display:none; margin-top:50px;">Sorry, this game only runs on the Google Chrome! You can download it free <a href="https://www.google.com/chrome">here</a></div>
     <div id="offline-resources" jstcache="0">
     <div id="offline-resources-1x" jstcache="0">
@@ -2594,22 +2645,6 @@ html[subframe] body {
       document.getElementById("main-frame-notchrome").style.display="";
 	}
   </script>
-
-  <div class="onlyforchrome">
-    <div id="socialbutts" class="addthis_toolbox addthis_default_style" style="text-align:center; padding-top:65px;">
-      <table border="0" style="margin:0 auto;"><tr>
-			<td><div
-				class="fb-like"
-				data-share="false"
-				data-width="150"
-				data-show-faces="false">
-			</div></td>
-			<td style="padding-left:15px;"><div class="g-plusone" data-size="medium" data-href="http://apps.thecodepost.org/trex/trex.html"></div></td>
-			<td><a href="https://twitter.com/share" class="twitter-share-button" data-url="http://apps.thecodepost.org/trex/trex.html" data-text="Cool Hidden T-Rex game" data-via="thecodepost" data-hashtags="trexgame">Tweet</a>
-<script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');</script></td>
-	  </tr></table>
-    </div>
-  </div>
 
     <script type="text/javascript">
     if (navigator.userAgent.toLowerCase().indexOf('chrome') <= -1) {
